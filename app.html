@@ -27,7 +27,7 @@
                 </div>
                 <div class="nav-buttons">
                     <button class="btn btn-text" onclick="location.href='history.html'">My Videos</button>
-                    <button class="btn btn-text" onclick="showSubscription()">Upgrade</button>
+                    <span id="nav-subscription"><button class="btn btn-text" onclick="showSubscription()">Upgrade</button></span>
                     <button class="btn btn-text" onclick="showProfile()">Profile</button>
                 </div>
             </div>
@@ -172,6 +172,11 @@
             <h2 class="modal-title">Choose Your Plan</h2>
             <p class="modal-subtitle">Unlimited dancing pets await!</p>
 
+            <div id="pro-status-container" style="display:none;text-align:center;padding:var(--spacing-xl)">
+                <p class="pro-status-badge">✓ Pro</p>
+                <p>You have an active subscription.</p>
+                <a id="manage-subscription-link" href="#" target="_blank" rel="noopener" class="btn btn-text">Manage subscription</a>
+            </div>
             <div id="paywall-container" style="display:none;min-height:200px"></div>
             <div class="plans-container" id="plans-container">
                 <div class="plan-card">

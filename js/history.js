@@ -15,7 +15,7 @@ async function getImageUrl(path) {
   if (!path || !window.firebaseStorage) return null;
   try {
     const ref = window.firebaseStorage.ref(path);
-    return ref.getDownloadURL();
+    return await ref.getDownloadURL();
   } catch {
     return null;
   }
@@ -24,7 +24,7 @@ async function getImageUrl(path) {
 async function getVideoUrl(path) {
   if (!path || !window.PetDanceAPI) return null;
   try {
-    return PetDanceAPI.getVideoUrlFromPath(path);
+    return await PetDanceAPI.getVideoUrlFromPath(path);
   } catch {
     return null;
   }

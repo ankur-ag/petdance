@@ -46,17 +46,34 @@ async function validateSubscription(revenuecatUserId, secretKey) {
 
     // Active if: entitlement exists AND (expires_date is null = lifetime, OR expires_date > now)
     const hasEntitlement = !!entitlement;
-    const isActive = hasEntitlement && (
+    let isActiveFromEntitlement = hasEntitlement && (
       entitlement.expires_date == null ||
       new Date(entitlement.expires_date) > new Date()
     );
 
-    const subscriptionStatus = isActive ? 'active'
-      : (subscriber.subscriptions && Object.keys(subscriber.subscriptions).length ? 'trial' : 'none');
+    // Fallback: check subscriptions object (Web Billing / Stripe) - any active sub = active
+    let isActiveFromSubscriptions = false;
+    const subs = subscriber.subscriptions || {};
+    for (const sub of Object.values(subs)) {
+      if (sub && (sub.expires_date == null || new Date(sub.expires_date) > new Date())) {
+        isActiveFromSubscriptions = true;
+        break;
+      }
+    }
+
+    const isActive = isActiveFromEntitlement || isActiveFromSubscriptions;
+
+    // Use 'trial' only when in actual trial period (period_type); otherwise active paid = 'active'
+    const subsList = Object.values(subs);
+    const inTrialPeriod = subsList.some(s => s?.period_type === 'trial');
+    const subscriptionStatus = isActive
+      ? (inTrialPeriod ? 'trial' : 'active')
+      : 'none';
 
     return {
-      hasAccess: isActive || subscriptionStatus === 'trial',
-      subscriptionStatus: isActive ? 'active' : subscriptionStatus,
+      hasAccess: isActive,
+      subscriptionStatus,
+      managementUrl: subscriber.management_url || null,
     };
   } catch (error) {
     console.error('RevenueCat validation error:', error);

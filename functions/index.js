@@ -70,10 +70,12 @@ async function getOrCreateUser(userId, email) {
 async function syncSubscriptionStatus(userId, subValidation) {
   if (!subValidation || subValidation.subscriptionStatus === 'none') return;
   try {
-    await db.collection('users').doc(userId).set({
+    const update = {
       subscriptionStatus: subValidation.subscriptionStatus,
       revenuecatUserId: userId,
-    }, { merge: true });
+    };
+    if (subValidation.managementUrl) update.managementUrl = subValidation.managementUrl;
+    await db.collection('users').doc(userId).set(update, { merge: true });
   } catch (e) {
     console.warn('syncSubscriptionStatus:', e.message);
   }

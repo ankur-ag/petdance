@@ -9,13 +9,70 @@ function scrollToExamples() {
     }
 }
 
-// Show subscription modal
+// Subscription status from Firestore - used to update nav and modal
+let _userDocUnsubscribe = null;
+window.hasProAccess = false;
+
+function initSubscriptionStatus() {
+    const user = window.firebaseAuth?.currentUser;
+    if (!user || !window.firebaseDb) return;
+    if (_userDocUnsubscribe) _userDocUnsubscribe();
+    _userDocUnsubscribe = window.firebaseDb.collection('users').doc(user.uid)
+        .onSnapshot((snap) => {
+            const data = snap.data();
+            const status = data?.subscriptionStatus || 'none';
+            window.hasProAccess = status === 'active' || status === 'trial';
+            window._subscriptionManagementUrl = data?.managementUrl || null;
+            updateNavForSubscription(window.hasProAccess);
+        }, () => {});
+}
+
+function cleanupSubscriptionStatus() {
+    if (_userDocUnsubscribe) {
+        _userDocUnsubscribe();
+        _userDocUnsubscribe = null;
+    }
+    window.hasProAccess = false;
+    updateNavForSubscription(false);
+}
+
+function updateNavForSubscription(hasAccess) {
+    const el = document.getElementById('nav-subscription');
+    if (!el) return;
+    if (hasAccess) {
+        el.innerHTML = '<button class="btn btn-text nav-pro-badge" onclick="showSubscription()">✓ Pro</button>';
+    } else {
+        el.innerHTML = '<button class="btn btn-text" onclick="showSubscription()">Upgrade</button>';
+    }
+}
+
+// Show subscription modal - shows Pro status or upgrade options
 function showSubscription() {
     const modal = document.getElementById('subscription-modal');
-    if (modal) {
-        modal.classList.add('active');
-        document.body.style.overflow = 'hidden';
+    if (!modal) return;
+    const proContainer = document.getElementById('pro-status-container');
+    const plansContainer = document.getElementById('plans-container');
+    const paywallContainer = document.getElementById('paywall-container');
+    if (window.hasProAccess && proContainer) {
+        proContainer.style.display = 'block';
+        if (plansContainer) plansContainer.style.display = 'none';
+        if (paywallContainer) paywallContainer.style.display = 'none';
+        const manageLink = document.getElementById('manage-subscription-link') || document.getElementById('manage-subscription-link-hist');
+        if (manageLink) {
+            if (window._subscriptionManagementUrl) {
+                manageLink.href = window._subscriptionManagementUrl;
+                manageLink.style.display = '';
+            } else {
+                manageLink.style.display = 'none';
+            }
+        }
+    } else {
+        if (proContainer) proContainer.style.display = 'none';
+        if (plansContainer) plansContainer.style.display = '';
+        if (paywallContainer) paywallContainer.style.display = 'none';
     }
+    modal.classList.add('active');
+    document.body.style.overflow = 'hidden';
 }
 
 // Close subscription modal
@@ -25,9 +82,10 @@ function closeSubscription() {
         modal.classList.remove('active');
         document.body.style.overflow = '';
     }
-    // Reset paywall/plans display for next open
+    const proContainer = document.getElementById('pro-status-container');
     const paywallContainer = document.getElementById('paywall-container');
     const plansContainer = document.getElementById('plans-container');
+    if (proContainer) proContainer.style.display = 'none';
     if (paywallContainer) {
         paywallContainer.style.display = 'none';
         paywallContainer.innerHTML = '';
@@ -61,6 +119,10 @@ function selectPlan(planType) {
 
 // Handle Upgrade - use RevenueCat paywall if configured, else selectPlan
 async function handleUpgrade(planType) {
+    if (window.hasProAccess) {
+        showSubscription();
+        return;
+    }
     if (!window.REVENUECAT_PUBLIC_API_KEY) {
         selectPlan(planType);
         return;
@@ -245,3 +307,11 @@ function setViewportHeight() {
 window.addEventListener('resize', setViewportHeight);
 window.addEventListener('orientationchange', setViewportHeight);
 setViewportHeight();
+
+// Subscription status: init when user signs in, cleanup when signs out
+if (window.firebaseAuth) {
+    window.firebaseAuth.onAuthStateChanged((user) => {
+        if (user) initSubscriptionStatus();
+        else cleanupSubscriptionStatus();
+    });
+}

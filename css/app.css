@@ -435,6 +435,17 @@
 .paywall-restore a:hover {
     text-decoration: underline;
 }
+.nav-pro-badge {
+    color: var(--color-primary);
+    font-weight: 600;
+    cursor: pointer;
+}
+.pro-status-badge {
+    font-size: var(--font-size-xl);
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-md);
+}
 
 /* Plans */
 .plans-container {
