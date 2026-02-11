@@ -1,0 +1,15 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Uploads: users can write to their own folder
+    match /uploads/{userId}/{jobId}/{fileName} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Outputs: users can read their own generated videos
+    match /outputs/{userId}/{jobId}/{fileName} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false; // Only Cloud Functions (admin) can write
+    }
+  }
+}

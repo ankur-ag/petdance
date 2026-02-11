@@ -1,0 +1,16 @@
+{
+  "name": "petdance",
+  "version": "1.0.0",
+  "description": "AI Pet Dancing Video Maker",
+  "scripts": {
+    "dev": "serve . -p 8000",
+    "start": "serve . -p 8000",
+    "build": "echo 'No build step - static site'"
+  },
+  "keywords": ["pet", "ai", "video", "dance"],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "serve": "^14.2.0"
+  }
+}

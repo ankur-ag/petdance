@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Create Video - PetDance</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/app.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <div class="logo" onclick="location.href='index.html'" style="cursor: pointer;">
+                    <span class="logo-icon">🐾</span>
+                    <span class="logo-text">PetDance</span>
+                </div>
+                <div class="nav-buttons">
+                    <button class="btn btn-text" onclick="showSubscription()">Upgrade</button>
+                    <button class="btn btn-text" onclick="showProfile()">Profile</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main App Container -->
+    <main class="app-container">
+        <div class="container">
+            <!-- Upload Section -->
+            <section class="upload-section" id="upload-section">
+                <h1 class="app-title">Create Your Dancing Pet Video</h1>
+                <p class="app-subtitle">Upload a photo of your pet and watch them come to life!</p>
+
+                <div class="upload-area" id="upload-area">
+                    <input type="file" id="file-input" accept="image/*" style="display: none;">
+                    <div class="upload-placeholder" id="upload-placeholder">
+                        <span class="upload-icon">📸</span>
+                        <h3>Upload Pet Photo</h3>
+                        <p>Click to browse or drag and drop</p>
+                        <p class="upload-hint">Supports: JPG, PNG, WEBP</p>
+                    </div>
+                    <div class="upload-preview" id="upload-preview" style="display: none;">
+                        <img id="preview-image" alt="Pet preview">
+                        <button class="btn-remove" onclick="removeImage()">✕</button>
+                    </div>
+                </div>
+
+                <button class="btn btn-large btn-primary" id="next-btn" onclick="goToStyleSelection()" disabled>
+                    Continue to Dance Styles
+                </button>
+            </section>
+
+            <!-- Dance Style Selection -->
+            <section class="style-section" id="style-section" style="display: none;">
+                <button class="btn btn-text back-btn" onclick="goBackToUpload()">← Back</button>
+                
+                <h2 class="app-title">Choose a Dance Style</h2>
+                <p class="app-subtitle">Pick from trending moves to make your pet groove!</p>
+
+                <div class="styles-grid">
+                    <div class="style-card" onclick="selectStyle('hip-hop')">
+                        <div class="style-preview">
+                            <span class="style-emoji">🎤</span>
+                        </div>
+                        <h3 class="style-name">Hip Hop</h3>
+                        <p class="style-description">Cool urban moves</p>
+                    </div>
+
+                    <div class="style-card" onclick="selectStyle('ballet')">
+                        <div class="style-preview">
+                            <span class="style-emoji">🩰</span>
+                        </div>
+                        <h3 class="style-name">Ballet</h3>
+                        <p class="style-description">Graceful and elegant</p>
+                    </div>
+
+                    <div class="style-card" onclick="selectStyle('disco')">
+                        <div class="style-preview">
+                            <span class="style-emoji">🕺</span>
+                        </div>
+                        <h3 class="style-name">Disco</h3>
+                        <p class="style-description">Funky 70s vibes</p>
+                    </div>
+
+                    <div class="style-card" onclick="selectStyle('breakdance')">
+                        <div class="style-preview">
+                            <span class="style-emoji">🤸</span>
+                        </div>
+                        <h3 class="style-name">Breakdance</h3>
+                        <p class="style-description">High-energy moves</p>
+                    </div>
+
+                    <div class="style-card" onclick="selectStyle('salsa')">
+                        <div class="style-preview">
+                            <span class="style-emoji">💃</span>
+                        </div>
+                        <h3 class="style-name">Salsa</h3>
+                        <p class="style-description">Latin rhythm</p>
+                    </div>
+
+                    <div class="style-card" onclick="selectStyle('robot')">
+                        <div class="style-preview">
+                            <span class="style-emoji">🤖</span>
+                        </div>
+                        <h3 class="style-name">Robot</h3>
+                        <p class="style-description">Mechanical precision</p>
+                    </div>
+                </div>
+
+                <button class="btn btn-large btn-primary" id="generate-btn" onclick="generateVideo()" disabled>
+                    Generate Video ✨
+                </button>
+            </section>
+
+            <!-- Generation Progress -->
+            <section class="progress-section" id="progress-section" style="display: none;">
+                <div class="progress-content">
+                    <div class="progress-animation">
+                        <span class="loader-emoji">🐾</span>
+                    </div>
+                    <h2 class="progress-title">Creating Your Dancing Pet...</h2>
+                    <p class="progress-subtitle" id="progress-text">Analyzing your pet photo...</p>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                    <p class="progress-percentage" id="progress-percentage">0%</p>
+                </div>
+            </section>
+
+            <!-- Result Section -->
+            <section class="result-section" id="result-section" style="display: none;">
+                <h2 class="app-title">Your Pet is Dancing! 🎉</h2>
+                <p class="app-subtitle">Share your masterpiece with the world</p>
+
+                <div class="result-video">
+                    <div class="video-placeholder">
+                        <span class="result-emoji">🎬</span>
+                        <p>Your dancing pet video</p>
+                    </div>
+                </div>
+
+                <div class="result-actions">
+                    <button class="btn btn-large btn-primary" onclick="downloadVideo()">
+                        <span>⬇️</span> Download Video
+                    </button>
+                    <button class="btn btn-large btn-secondary" onclick="shareVideo()">
+                        <span>📤</span> Share
+                    </button>
+                </div>
+
+                <button class="btn btn-text" onclick="createAnother()">Create Another Video</button>
+            </section>
+        </div>
+    </main>
+
+    <!-- Subscription Modal -->
+    <div class="modal" id="subscription-modal">
+        <div class="modal-overlay" onclick="closeSubscription()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeSubscription()">✕</button>
+            <h2 class="modal-title">Choose Your Plan</h2>
+            <p class="modal-subtitle">Unlimited dancing pets await!</p>
+
+            <div class="plans-container">
+                <div class="plan-card">
+                    <div class="plan-badge">Free</div>
+                    <h3 class="plan-name">Starter</h3>
+                    <div class="plan-price">
+                        <span class="price-amount">$0</span>
+                        <span class="price-period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li>✓ 3 videos per month</li>
+                        <li>✓ Basic dance styles</li>
+                        <li>✓ Standard quality</li>
+                        <li>✓ Watermark included</li>
+                    </ul>
+                    <button class="btn btn-secondary btn-full">Current Plan</button>
+                </div>
+
+                <div class="plan-card plan-featured">
+                    <div class="plan-badge plan-badge-featured">Popular</div>
+                    <h3 class="plan-name">Pro</h3>
+                    <div class="plan-price">
+                        <span class="price-amount">$9.99</span>
+                        <span class="price-period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li>✓ Unlimited videos</li>
+                        <li>✓ All dance styles</li>
+                        <li>✓ HD quality</li>
+                        <li>✓ No watermark</li>
+                        <li>✓ Priority generation</li>
+                    </ul>
+                    <button class="btn btn-primary btn-full" onclick="selectPlan('pro')">Upgrade to Pro</button>
+                </div>
+
+                <div class="plan-card">
+                    <div class="plan-badge">Best Value</div>
+                    <h3 class="plan-name">Premium</h3>
+                    <div class="plan-price">
+                        <span class="price-amount">$19.99</span>
+                        <span class="price-period">/month</span>
+                    </div>
+                    <ul class="plan-features">
+                        <li>✓ Everything in Pro</li>
+                        <li>✓ 4K quality</li>
+                        <li>✓ Custom dance styles</li>
+                        <li>✓ Advanced editing</li>
+                        <li>✓ API access</li>
+                    </ul>
+                    <button class="btn btn-secondary btn-full" onclick="selectPlan('premium')">Upgrade to Premium</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Profile Modal -->
+    <div class="modal" id="profile-modal">
+        <div class="modal-overlay" onclick="closeProfile()"></div>
+        <div class="modal-content modal-small">
+            <button class="modal-close" onclick="closeProfile()">✕</button>
+            <h2 class="modal-title">Profile</h2>
+            
+            <div class="profile-info">
+                <div class="profile-avatar">👤</div>
+                <h3 class="profile-name">Pet Lover</h3>
+                <p class="profile-email">user@example.com</p>
+            </div>
+
+            <div class="profile-stats">
+                <div class="stat-item">
+                    <span class="stat-value">12</span>
+                    <span class="stat-label">Videos Created</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value">3</span>
+                    <span class="stat-label">Remaining</span>
+                </div>
+            </div>
+
+            <div class="profile-actions">
+                <button class="btn btn-secondary btn-full">Edit Profile</button>
+                <button class="btn btn-text btn-full" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/app.js"></script>
+    
+    <script>
+        // Protect app page - require authentication
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.authManager && !window.authManager.isAuthenticated()) {
+                    alert('Please sign in to create videos');
+                    window.location.href = 'index.html';
+                }
+            }, 1000); // Wait for auth to initialize
+        });
+    </script>
+</body>
+</html>
