@@ -107,8 +107,8 @@ class AuthManager {
             await this.auth.signOut();
             console.log('User signed out successfully');
             
-            // Redirect to home page
-            if (window.location.pathname.includes('app.html')) {
+            // Redirect to home page from app/history
+            if (window.location.pathname.includes('app.html') || window.location.pathname.includes('history.html')) {
                 window.location.href = 'index.html';
             }
         } catch (error) {

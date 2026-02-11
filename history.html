@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>My Videos - PetDance</title>
+    <link rel="stylesheet" href="css/theme.css">
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/app.css">
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-storage-compat.js"></script>
+    <style>
+        .history-header { text-align: center; margin-bottom: var(--spacing-xl); }
+        .history-title { font-size: var(--font-size-2xl); margin-bottom: var(--spacing-sm); }
+        .history-subtitle { color: var(--color-text-secondary); }
+        .history-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--spacing-lg); }
+        .history-card { 
+            background: var(--color-surface); 
+            border-radius: var(--radius-xl); 
+            overflow: hidden; 
+            box-shadow: var(--shadow-md);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .history-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+        .history-card-thumb { 
+            aspect-ratio: 1; 
+            background: var(--color-background-tertiary); 
+            position: relative;
+            overflow: hidden;
+        }
+        .history-card-thumb img, .history-card-thumb video { 
+            width: 100%; height: 100%; object-fit: cover; display: block;
+        }
+        .history-card-thumb .status-badge {
+            position: absolute; top: var(--spacing-sm); left: var(--spacing-sm);
+            padding: 4px 10px; border-radius: 20px; font-size: var(--font-size-xs);
+            font-weight: 600; text-transform: capitalize;
+        }
+        .status-pending { background: var(--color-info); color: white; }
+        .status-processing { background: var(--color-accent); color: white; }
+        .status-completed { background: var(--color-success); color: white; }
+        .status-failed { background: var(--color-error); color: white; }
+        .history-card-body { padding: var(--spacing-md); }
+        .history-card-style { font-weight: 600; color: var(--color-text-primary); margin-bottom: 4px; }
+        .history-card-date { font-size: var(--font-size-sm); color: var(--color-text-secondary); }
+        .history-card-actions { margin-top: var(--spacing-sm); display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
+        .history-empty { 
+            text-align: center; padding: var(--spacing-4xl) var(--spacing-xl); 
+            color: var(--color-text-secondary); 
+        }
+        .history-empty-icon { font-size: 4rem; margin-bottom: var(--spacing-md); opacity: 0.5; }
+        .history-loading { text-align: center; padding: var(--spacing-3xl); color: var(--color-text-secondary); }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="container">
+            <div class="nav-content">
+                <div class="logo" onclick="location.href='index.html'" style="cursor: pointer;">
+                    <span class="logo-icon">🐾</span>
+                    <span class="logo-text">PetDance</span>
+                </div>
+                <div class="nav-buttons">
+                    <button class="btn btn-text" onclick="location.href='app.html'">Create Video</button>
+                    <button class="btn btn-text" onclick="showSubscription()">Upgrade</button>
+                    <button class="btn btn-text" onclick="showProfile()">Profile</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="app-container">
+        <div class="container">
+            <header class="history-header">
+                <h1 class="history-title">My Videos</h1>
+                <p class="history-subtitle">Your pet dance creations</p>
+            </header>
+
+            <div id="history-loading" class="history-loading">
+                <div class="progress-animation"><span class="loader-emoji">🐾</span></div>
+                <p>Loading your videos...</p>
+            </div>
+
+            <div id="history-empty" class="history-empty" style="display: none;">
+                <div class="history-empty-icon">🎬</div>
+                <h3>No videos yet</h3>
+                <p>Create your first dancing pet video!</p>
+                <button class="btn btn-large btn-primary" onclick="location.href='app.html'">Create Video</button>
+            </div>
+
+            <div id="history-grid" class="history-grid" style="display: none;"></div>
+        </div>
+    </main>
+
+    <!-- Subscription Modal (same as app.html) -->
+    <div class="modal" id="subscription-modal">
+        <div class="modal-overlay" onclick="closeSubscription()"></div>
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeSubscription()">✕</button>
+            <h2 class="modal-title">Upgrade to Pro</h2>
+            <p class="modal-subtitle">Unlimited dancing pets!</p>
+        </div>
+    </div>
+
+    <!-- Profile Modal (same as app.html) -->
+    <div class="modal" id="profile-modal">
+        <div class="modal-overlay" onclick="closeProfile()"></div>
+        <div class="modal-content modal-small">
+            <button class="modal-close" onclick="closeProfile()">✕</button>
+            <h2 class="modal-title">Profile</h2>
+            <div class="profile-info">
+                <div class="profile-avatar">👤</div>
+                <h3 class="profile-name" id="profile-name">User</h3>
+                <p class="profile-email" id="profile-email">user@example.com</p>
+            </div>
+            <div class="profile-actions">
+                <button class="btn btn-text btn-full" onclick="logout()">Logout</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/firebase-config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/history.js"></script>
+    
+    <script>
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                if (window.authManager && !window.authManager.isAuthenticated()) {
+                    window.location.href = 'index.html';
+                }
+            }, 1000);
+        });
+    </script>
+</body>
+</html>
