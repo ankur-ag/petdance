@@ -6,3 +6,7 @@ functions/node_modules/
 .env
 .env.local
 .env.*.local
+functions/.env
+functions/.env.*
+!functions/.env.example
+serviceAccountKey.json

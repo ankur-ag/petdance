@@ -8,16 +8,15 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 
-const config = () => {
-  const c = functions.config();
-  return {
-    replicateToken: process.env.REPLICATE_API_TOKEN || c?.replicate?.api_token,
-    replicateModel: process.env.REPLICATE_MODEL || c?.replicate?.model,
-    replicateWebhookSecret: process.env.REPLICATE_WEBHOOK_SECRET || c?.replicate?.webhook_secret,
-    revenuecatSecret: process.env.REVENUECAT_SECRET_KEY || c?.revenuecat?.secret_key,
-    revenuecatEntitlement: process.env.REVENUECAT_ENTITLEMENT_ID || c?.revenuecat?.entitlement_id || 'pro',
-  };
-};
+// Config via env vars (set in functions/.env or Firebase console)
+// See functions/.env.example for required variables
+const config = () => ({
+  replicateToken: process.env.REPLICATE_API_TOKEN,
+  replicateModel: process.env.REPLICATE_MODEL || 'minimax/hailuo-2.3-fast',
+  replicateWebhookSecret: process.env.REPLICATE_WEBHOOK_SECRET,
+  revenuecatSecret: process.env.REVENUECAT_SECRET_KEY,
+  revenuecatEntitlement: process.env.REVENUECAT_ENTITLEMENT_ID || 'pro',
+});
 const { getStorage } = require('firebase-admin/storage');
 const { validateSubscription } = require('./helpers/revenuecat');
 const {
@@ -32,11 +31,17 @@ admin.initializeApp();
 const db = admin.firestore();
 const auth = admin.auth();
 
-// Storage may be unavailable (e.g. bucket not created yet - billing pending)
+// Storage bucket - new projects use .firebasestorage.app, older use .appspot.com
 let bucket;
 try {
   const storage = getStorage();
-  bucket = storage.bucket();
+  const firebaseConfig = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
+  const projectId = process.env.GCLOUD_PROJECT || firebaseConfig.projectId || 'petdance-da752';
+  const bucketName = process.env.STORAGE_BUCKET
+    || firebaseConfig.storageBucket
+    || `${projectId}.firebasestorage.app`  // New format (Oct 2024+)
+    || `${projectId}.appspot.com`;         // Legacy
+  bucket = storage.bucket(bucketName);
 } catch (e) {
   console.warn('Storage not available:', e.message);
 }
@@ -66,7 +71,8 @@ async function getOrCreateUser(userId, email) {
 }
 
 /**
- * Check rate limit for free users
+ * Check rate limit for free users - only counts jobs where we called Replicate
+ * (processing = paying Replicate, completed = delivered video). Pending/failed don't count.
  */
 async function checkRateLimit(userId) {
   const userDoc = await db.collection('users').doc(userId).get();
@@ -81,6 +87,7 @@ async function checkRateLimit(userId) {
 
   const jobsSnapshot = await db.collection('jobs')
     .where('userId', '==', userId)
+    .where('status', 'in', ['processing', 'completed'])
     .where('createdAt', '>=', dayAgo)
     .get();
 
@@ -88,6 +95,21 @@ async function checkRateLimit(userId) {
     throw new Error(`Free tier limit: ${FREE_USER_DAILY_LIMIT} videos per day. Upgrade for unlimited!`);
   }
   return true;
+}
+
+/** Verify we can write to Storage outputs path before calling expensive Replicate API */
+async function verifyStorageWritable(userId, jobId) {
+  if (!bucket) return false;
+  const outputPath = `outputs/${userId}/${jobId}/.probe`;
+  const probeFile = bucket.file(outputPath);
+  try {
+    await probeFile.save(Buffer.from('ok'), { metadata: { contentType: 'text/plain' } });
+    await probeFile.delete(); // Clean up
+    return true;
+  } catch (e) {
+    console.warn('Storage write probe failed:', e.message);
+    return false;
+  }
 }
 
 /**
@@ -138,7 +160,6 @@ exports.createJob = functions.https.onRequest(async (req, res) => {
     }
 
     await getOrCreateUser(userId, email);
-    await checkRateLimit(userId);
 
     const revenuecatUserId = userId;
     const subValidation = await validateSubscription(revenuecatUserId, config().revenuecatSecret);
@@ -154,20 +175,8 @@ exports.createJob = functions.https.onRequest(async (req, res) => {
     const jobRef = db.collection('jobs').doc();
     const jobId = jobRef.id;
     const inputPath = `uploads/${userId}/${jobId}/original.jpg`;
-
-    await jobRef.set({
-      userId,
-      inputImagePath: inputPath,
-      outputVideoPath: null,
-      status: 'pending',
-      danceStyle,
-      replicateJobId: null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      completedAt: null,
-      errorMessage: null,
-    });
-
     const file = bucket.file(inputPath);
+
     let uploadUrl;
     try {
       [uploadUrl] = await file.getSignedUrl({
@@ -180,6 +189,18 @@ exports.createJob = functions.https.onRequest(async (req, res) => {
       res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
       return;
     }
+
+    await jobRef.set({
+      userId,
+      inputImagePath: inputPath,
+      outputVideoPath: null,
+      status: 'pending',
+      danceStyle,
+      replicateJobId: null,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      completedAt: null,
+      errorMessage: null,
+    });
 
     res.status(200).json({
       jobId,
@@ -258,6 +279,14 @@ exports.startJob = functions.https.onRequest(async (req, res) => {
     }
 
     if (!bucket) {
+      res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
+      return;
+    }
+
+    await checkRateLimit(userId);
+
+    const canWrite = await verifyStorageWritable(userId, jobRef.id);
+    if (!canWrite) {
       res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
       return;
     }

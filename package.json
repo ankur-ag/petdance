@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "serve . -p 8000",
     "start": "serve . -p 8000",
-    "build": "echo 'No build step - static site'"
+    "build": "echo 'No build step - static site'",
+    "grant-pro": "node scripts/grant-pro.js"
   },
   "keywords": [
     "pet",
@@ -16,6 +17,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "firebase-admin": "^13.6.0",
     "serve": "^14.2.0"
   },
   "dependencies": {

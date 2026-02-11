@@ -48,32 +48,25 @@ firebase deploy --only functions
 
 ## 2. Environment Variables (Cloud Functions)
 
-Set these in Firebase Console → Functions → configure secrets, or via `firebase functions:config:set`:
+`functions.config()` was removed in firebase-functions v7. Use a `.env` file in `functions/`:
+
+1. Copy `functions/.env.example` to `functions/.env`
+2. Fill in your values
+3. Never commit `.env` (it's in .gitignore)
 
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `REPLICATE_API_TOKEN` | Get from [Replicate Account](https://replicate.com/account/api-tokens) | Yes |
-| `REPLICATE_MODEL` | Model ID. Default: `minimax/hailuo-2.3-fast` (pet dancing). Other options: `minimax/video-01`, `stability-ai/stable-video-diffusion` | No |
+| `REPLICATE_MODEL` | Model ID. Default: `minimax/hailuo-2.3-fast` (pet dancing) | No |
 | `REPLICATE_WEBHOOK_SECRET` | From `GET https://api.replicate.com/v1/webhooks/default/secret` | For webhook verification |
 | `REVENUECAT_SECRET_KEY` | From RevenueCat dashboard | For subscription validation |
 | `REVENUECAT_ENTITLEMENT_ID` | Your entitlement ID (e.g. `pro`) | No (defaults to `pro`) |
 
-### Set env vars via Firebase:
+**Migrating from legacy config:** If you previously used `firebase functions:config:set`:
 ```bash
-firebase functions:config:set replicate.api_token="r8_xxx" revenuecat.secret_key="sk_xxx"
+firebase functions:config:get   # view current values
+# Create functions/.env with REPLICATE_API_TOKEN=..., etc.
 ```
-
-Or use Firebase Functions secrets (recommended for Node 18+):
-```bash
-firebase functions:secrets:set REPLICATE_API_TOKEN
-firebase functions:secrets:set REVENUECAT_SECRET_KEY
-```
-
-Then in `index.js`, access via `process.env.REPLICATE_API_TOKEN` (requires defining in function config).
-
-**Note:** Firebase Functions config uses lowercase with underscores: `replicate.api_token` → `process.env.replicate_api_token` in Node. For custom env vars, use Firebase's new `defineSecret` API or set in the Functions dashboard under "Runtime environment variables".
-
-For simplicity, use **Firebase Console** → Your project → Functions → select function → Environment variables.
 
 ## 3. Replicate Setup
 
