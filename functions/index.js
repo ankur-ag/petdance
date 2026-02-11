@@ -7,6 +7,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const express = require('express');
 
 // Config via env vars (set in functions/.env or Firebase console)
 // See functions/.env.example for required variables
@@ -341,16 +342,15 @@ exports.startJob = functions.https.onRequest(async (req, res) => {
  * Webhook: Replicate job completion
  * POST /api/replicate-webhook
  * Called by Replicate when prediction completes
+ *
+ * Uses express.raw() to capture exact request body for signature verification.
+ * Firebase's default body parsing can alter the payload and break HMAC verification.
  */
-exports.replicateWebhook = functions.https.onRequest(async (req, res) => {
-  if (req.method !== 'POST') {
-    res.status(405).send('Method not allowed');
-    return;
-  }
-
-  const rawBody = (typeof req.rawBody !== 'undefined' ? req.rawBody : null)
-    ? (Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : String(req.rawBody))
-    : JSON.stringify(req.body);
+const webhookApp = express();
+webhookApp.use(express.raw({ type: 'application/json' }));
+webhookApp.post('*', async (req, res) => {
+  // req.body is the raw Buffer (from express.raw) - use exact bytes for signature
+  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
   const webhookId = req.headers['webhook-id'];
   const webhookTimestamp = req.headers['webhook-timestamp'];
   const webhookSignature = req.headers['webhook-signature'];
@@ -378,7 +378,7 @@ exports.replicateWebhook = functions.https.onRequest(async (req, res) => {
 
   let payload;
   try {
-    payload = typeof req.body === 'object' ? req.body : JSON.parse(rawBody);
+    payload = JSON.parse(rawBody);
   } catch {
     res.status(400).send('Invalid JSON');
     return;
@@ -482,6 +482,10 @@ exports.replicateWebhook = functions.https.onRequest(async (req, res) => {
 
   res.status(200).send('OK');
 });
+webhookApp.all('*', (req, res) => {
+  res.status(req.method === 'POST' ? 404 : 405).send(req.method === 'POST' ? 'Not found' : 'Method not allowed');
+});
+exports.replicateWebhook = functions.https.onRequest(webhookApp);
 
 /**
  * API: Get signed download URL
