@@ -92,25 +92,38 @@ firebase functions:config:get   # view current values
 
 ### 4.1 Create Project
 1. Sign up at [RevenueCat](https://www.revenuecat.com/)
-2. Create a project and add your app (iOS/Android/Web)
-3. Configure products and entitlements
+2. Create a project and add your app
+3. Create an entitlement (e.g. `pro`) and link products
 
-### 4.2 Get Secret Key
+### 4.2 Backend: Secret Key
 1. RevenueCat Dashboard → Project Settings → API Keys
-2. Copy the **Secret API key** (starts with `sk_`)
-3. Set as `REVENUECAT_SECRET_KEY` in Firebase
+2. Copy the **Secret API key** (for server-side validation)
+3. Set as `REVENUECAT_SECRET_KEY` in `functions/.env`
 
-### 4.3 User ID Mapping
-We use Firebase UID as RevenueCat `app_user_id`. Ensure your client sends the same ID when identifying users in RevenueCat.
+### 4.3 Web Billing (for web app purchases)
+1. RevenueCat → Apps & providers → Add **Web Billing** platform
+2. Connect Stripe (or Paddle) as payment gateway
+3. Create products and offerings in the dashboard
+4. Copy the **Public API Key** from the Web Billing app config
+5. Set in `js/firebase-config.js`: `window.REVENUECAT_PUBLIC_API_KEY = 'pb_...'`
+
+### 4.4 User ID Mapping
+We use Firebase UID as RevenueCat `app_user_id`. The client SDK is configured with the logged-in user's UID.
+
+### 4.5 Troubleshooting: Purchase worked but account still shows unsubscribed
+- **Secret key must match Public key project**: `REVENUECAT_SECRET_KEY` in `functions/.env` must be from the same RevenueCat project as `REVENUECAT_PUBLIC_API_KEY`. Use Project Settings → API Keys for the Secret key; Web Billing app for the Public key.
+- **Entitlement ID must match**: `REVENUECAT_ENTITLEMENT_ID` in `functions/.env` must exactly match the entitlement ID in the RevenueCat dashboard (e.g. `pro`). Case is normalized.
+- **Refresh after purchase**: After a purchase, the app calls `refreshSubscription` to sync. If that failed (e.g. CORS), click "Already subscribed? Refresh status" in the Upgrade modal, or create a video to trigger a sync.
 
 ## 5. API Endpoints
 
 | Endpoint | Method | Auth | Description |
 |----------|--------|------|-------------|
-| `createJob` | POST | Bearer token | Create job, get presigned upload URL |
+| `createJob` | POST | Bearer token | Create job, get upload path |
 | `startJob` | POST | Bearer token | Start Replicate processing |
 | `getJobStatus` | GET | Bearer token | Get job status + download URL if completed |
 | `getDownloadUrl` | POST | Bearer token | Get signed download URL |
+| `refreshSubscription` | POST | Bearer token | Sync user doc with RevenueCat (call after purchase) |
 | `replicateWebhook` | POST | Webhook secret | Replicate completion callback |
 
 ### Request Examples

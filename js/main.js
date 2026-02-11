@@ -25,6 +25,14 @@ function closeSubscription() {
         modal.classList.remove('active');
         document.body.style.overflow = '';
     }
+    // Reset paywall/plans display for next open
+    const paywallContainer = document.getElementById('paywall-container');
+    const plansContainer = document.getElementById('plans-container');
+    if (paywallContainer) {
+        paywallContainer.style.display = 'none';
+        paywallContainer.innerHTML = '';
+    }
+    if (plansContainer) plansContainer.style.display = '';
 }
 
 // Show profile modal
@@ -45,10 +53,24 @@ function closeProfile() {
     }
 }
 
-// Select plan (mock function)
+// Select plan (mock - used when RevenueCat not configured)
 function selectPlan(planType) {
     alert(`Plan selection: ${planType}\n\nThis would redirect to payment processing.\n(Payment integration to be implemented)`);
     closeSubscription();
+}
+
+// Handle Upgrade - use RevenueCat paywall if configured, else selectPlan
+async function handleUpgrade(planType) {
+    if (!window.REVENUECAT_PUBLIC_API_KEY) {
+        selectPlan(planType);
+        return;
+    }
+    try {
+        await showRevenueCatPaywall();
+    } catch (e) {
+        console.error('RevenueCat paywall error:', e);
+        selectPlan(planType);
+    }
 }
 
 // Logout function

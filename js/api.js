@@ -114,6 +114,21 @@ const API = {
         if (!outputVideoPath) return null;
         return this.getDownloadUrlFromPath(outputVideoPath);
     },
+
+    async refreshSubscription() {
+        const token = await this.getAuthToken();
+        const base = window.FUNCTIONS_BASE;
+        const res = await fetch(`${base}/refreshSubscription`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to refresh');
+        return data;
+    },
 };
 
 window.PetDanceAPI = API;

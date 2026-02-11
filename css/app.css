@@ -395,6 +395,47 @@
     margin-bottom: var(--spacing-2xl);
 }
 
+/* RevenueCat custom paywall packages */
+.paywall-packages-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-lg);
+    margin-top: var(--spacing-md);
+}
+.paywall-package {
+    background: var(--color-background-secondary);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-lg);
+}
+.paywall-package-title {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+.paywall-package-price {
+    font-size: var(--font-size-xl);
+    color: var(--color-primary);
+    margin-bottom: var(--spacing-md);
+}
+.paywall-loading {
+    padding: var(--spacing-2xl);
+    text-align: center;
+    color: var(--color-text-secondary);
+}
+.paywall-restore {
+    margin-top: var(--spacing-md);
+    text-align: center;
+}
+.paywall-restore a {
+    color: var(--color-primary);
+    text-decoration: none;
+    font-size: var(--font-size-sm);
+}
+.paywall-restore a:hover {
+    text-decoration: underline;
+}
+
 /* Plans */
 .plans-container {
     display: grid;

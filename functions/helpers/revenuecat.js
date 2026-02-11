@@ -35,18 +35,24 @@ async function validateSubscription(revenuecatUserId, secretKey) {
     }
 
     const data = await response.json();
-    
-    // Check entitlements - customize "pro" to match your RevenueCat entitlement ID
-    const entitlementId = process.env.REVENUECAT_ENTITLEMENT_ID || 'pro';
-    const entitlements = data.subscriber?.entitlements || {};
-    const entitlement = entitlements[entitlementId];
+    const subscriber = data.subscriber || data;
 
-    const isActive = entitlement?.expires_date 
-      ? new Date(entitlement.expires_date) > new Date() 
-      : false;
+    // Check entitlements - REVENUECAT_ENTITLEMENT_ID must match RevenueCat dashboard (e.g. "pro")
+    const entitlementId = (process.env.REVENUECAT_ENTITLEMENT_ID || 'pro').toLowerCase();
+    const entitlements = subscriber.entitlements || {};
+    const entitlement = entitlements[entitlementId] || Object.entries(entitlements).find(
+      ([k]) => k.toLowerCase() === entitlementId
+    )?.[1];
 
-    const subscriptionStatus = isActive ? 'active' 
-      : (data.subscriber?.subscriptions ? 'trial' : 'none');
+    // Active if: entitlement exists AND (expires_date is null = lifetime, OR expires_date > now)
+    const hasEntitlement = !!entitlement;
+    const isActive = hasEntitlement && (
+      entitlement.expires_date == null ||
+      new Date(entitlement.expires_date) > new Date()
+    );
+
+    const subscriptionStatus = isActive ? 'active'
+      : (subscriber.subscriptions && Object.keys(subscriber.subscriptions).length ? 'trial' : 'none');
 
     return {
       hasAccess: isActive || subscriptionStatus === 'trial',

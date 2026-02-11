@@ -27,6 +27,10 @@ const googleProvider = new firebase.auth.GoogleAuthProvider();
 googleProvider.addScope('profile');
 googleProvider.addScope('email');
 
+// RevenueCat - Web Billing Public API Key from RevenueCat dashboard (Apps → Web Billing → Public API Key)
+// Leave empty to disable client-side paywall - backend still validates with REVENUECAT_SECRET_KEY
+window.REVENUECAT_PUBLIC_API_KEY = 'test_hOHHLtgpRSrkvaqeiWUWnMTxPxt'; // e.g. 'pb_xxxxxxxxxxxxxxxxxxxxxxxx'
+
 // Export for use in other files
 window.firebaseAuth = auth;
 window.firebaseDb = db;

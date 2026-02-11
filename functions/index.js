@@ -7,6 +7,7 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const cors = require('cors')({ origin: true });
 
 // Config via env vars (set in functions/.env or Firebase console)
 // See functions/.env.example for required variables
@@ -63,6 +64,19 @@ async function getOrCreateUser(userId, email) {
   }
 
   return userRef;
+}
+
+/** Sync user doc with RevenueCat subscription status when we validate */
+async function syncSubscriptionStatus(userId, subValidation) {
+  if (!subValidation || subValidation.subscriptionStatus === 'none') return;
+  try {
+    await db.collection('users').doc(userId).set({
+      subscriptionStatus: subValidation.subscriptionStatus,
+      revenuecatUserId: userId,
+    }, { merge: true });
+  } catch (e) {
+    console.warn('syncSubscriptionStatus:', e.message);
+  }
 }
 
 /**
@@ -159,6 +173,9 @@ exports.createJob = functions.https.onRequest(async (req, res) => {
 
     const revenuecatUserId = userId;
     const subValidation = await validateSubscription(revenuecatUserId, config().revenuecatSecret);
+    if (subValidation.hasAccess) {
+      await syncSubscriptionStatus(userId, subValidation);
+    }
     if (!subValidation.hasAccess && subValidation.subscriptionStatus === 'none') {
       // Allow free tier with rate limit
     }
@@ -249,6 +266,9 @@ exports.startJob = functions.https.onRequest(async (req, res) => {
     }
 
     const subValidation = await validateSubscription(job.userId, config().revenuecatSecret);
+    if (subValidation.hasAccess) {
+      await syncSubscriptionStatus(userId, subValidation);
+    }
     if (!subValidation.hasAccess && subValidation.subscriptionStatus === 'none') {
       // Free user - rate limit already checked at job creation
     }
@@ -617,4 +637,50 @@ exports.getJobStatus = functions.https.onRequest(async (req, res) => {
     console.error('getJobStatus error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
   }
+});
+
+/**
+ * API: Refresh subscription status from RevenueCat
+ * POST /refreshSubscription
+ * Headers: Authorization: Bearer <firebase-id-token>
+ *
+ * Call after purchase to sync user doc with RevenueCat.
+ */
+exports.refreshSubscription = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader?.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Missing or invalid Authorization header' });
+        return;
+      }
+
+      const idToken = authHeader.split('Bearer ')[1];
+      const decodedToken = await auth.verifyIdToken(idToken);
+      const userId = decodedToken.uid;
+      const email = decodedToken.email || '';
+
+      await getOrCreateUser(userId, email);
+      const subValidation = await validateSubscription(userId, config().revenuecatSecret);
+      await syncSubscriptionStatus(userId, subValidation);
+
+      res.status(200).json({
+        subscriptionStatus: subValidation.subscriptionStatus,
+        hasAccess: subValidation.hasAccess,
+      });
+    } catch (error) {
+      console.error('refreshSubscription error:', error);
+      res.status(500).json({ error: error.message || 'Internal server error' });
+    }
+  });
 });
