@@ -7,7 +7,6 @@
 
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
-const express = require('express');
 
 // Config via env vars (set in functions/.env or Firebase console)
 // See functions/.env.example for required variables
@@ -343,14 +342,20 @@ exports.startJob = functions.https.onRequest(async (req, res) => {
  * POST /api/replicate-webhook
  * Called by Replicate when prediction completes
  *
- * Uses express.raw() to capture exact request body for signature verification.
- * Firebase's default body parsing can alter the payload and break HMAC verification.
+ * Uses req.rawBody (provided by Firebase) for signature verification - exact wire bytes.
+ * Do NOT use express.raw() - Firebase may pre-consume the stream.
  */
-const webhookApp = express();
-webhookApp.use(express.raw({ type: 'application/json' }));
-webhookApp.post('*', async (req, res) => {
-  // req.body is the raw Buffer (from express.raw) - use exact bytes for signature
-  const rawBody = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : String(req.body || '');
+exports.replicateWebhook = functions.https.onRequest(async (req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).send('Method not allowed');
+    return;
+  }
+
+  // Firebase prod provides rawBody; emulator often does not (known limitation)
+  const rawBody =
+    typeof req.rawBody !== 'undefined' && req.rawBody != null
+      ? (Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : String(req.rawBody))
+      : (typeof req.body === 'object' && req.body !== null ? JSON.stringify(req.body) : String(req.body || ''));
   const webhookId = req.headers['webhook-id'];
   const webhookTimestamp = req.headers['webhook-timestamp'];
   const webhookSignature = req.headers['webhook-signature'];
@@ -482,10 +487,6 @@ webhookApp.post('*', async (req, res) => {
 
   res.status(200).send('OK');
 });
-webhookApp.all('*', (req, res) => {
-  res.status(req.method === 'POST' ? 404 : 405).send(req.method === 'POST' ? 'Not found' : 'Method not allowed');
-});
-exports.replicateWebhook = functions.https.onRequest(webhookApp);
 
 /**
  * API: Get signed download URL

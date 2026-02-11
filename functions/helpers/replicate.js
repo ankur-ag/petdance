@@ -118,14 +118,16 @@ async function getModelVersion(modelId) {
 }
 
 /**
- * Verify Replicate webhook signature
+ * Verify Replicate webhook signature (Svix format)
+ * Secret must be base64-decoded per Svix docs: https://docs.svix.com/receiving/verifying-payloads/how-manual
  */
 function verifyWebhookSignature(body, webhookId, timestamp, signature, secret) {
   const crypto = require('crypto');
   const signedContent = `${webhookId}.${timestamp}.${body}`;
-  const secretKey = secret.replace('whsec_', '');
+  const secretBase64 = secret.replace('whsec_', '');
+  const secretBytes = Buffer.from(secretBase64, 'base64');
   const expectedSignature = crypto
-    .createHmac('sha256', secretKey)
+    .createHmac('sha256', secretBytes)
     .update(signedContent)
     .digest('base64');
 

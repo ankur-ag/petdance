@@ -6,7 +6,8 @@
     "dev": "serve . -p 8000",
     "start": "serve . -p 8000",
     "build": "echo 'No build step - static site'",
-    "grant-pro": "node scripts/grant-pro.js"
+    "grant-pro": "node scripts/grant-pro.js",
+    "test-webhook": "node scripts/test-webhook-signature.js"
   },
   "keywords": [
     "pet",
