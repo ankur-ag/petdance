@@ -212,22 +212,23 @@ async function generateVideo() {
     updateProgress(10, 'Creating job...');
 
     try {
-        const { jobId, uploadUrl } = await PetDanceAPI.createJob(selectedStyle);
+        const { jobId, uploadPath } = await PetDanceAPI.createJob(selectedStyle);
         currentJobId = jobId;
 
         updateProgress(30, 'Uploading image...');
 
-        // Convert to JPEG if needed for storage path (original.jpg)
         let fileToUpload = uploadedFile;
         if (!uploadedFile.type.match(/jpeg|jpg/)) {
             fileToUpload = await convertToJpeg(uploadedFile);
         }
 
-        await PetDanceAPI.uploadImage(uploadUrl, fileToUpload);
+        await PetDanceAPI.uploadToStorage(uploadPath, fileToUpload);
+
+        updateProgress(40, 'Getting image URL...');
+        const imageUrl = await PetDanceAPI.getDownloadUrlFromPath(uploadPath);
 
         updateProgress(50, 'Starting AI processing...');
-
-        await PetDanceAPI.startJob(jobId);
+        await PetDanceAPI.startJob(jobId, imageUrl);
 
         updateProgress(60, 'AI is creating your dancing pet...');
 
@@ -278,7 +279,11 @@ async function handleJobUpdate(job) {
         jobUnsubscribe = null;
         let downloadUrl = null;
         try {
-            downloadUrl = await PetDanceAPI.getDownloadUrl(job.id);
+            if (job.outputVideoPath) {
+                downloadUrl = await PetDanceAPI.getVideoUrlFromPath(job.outputVideoPath);
+            } else {
+                downloadUrl = await PetDanceAPI.getDownloadUrl(job.id);
+            }
         } catch (e) {
             console.error('Get download URL failed:', e);
         }
@@ -306,7 +311,15 @@ async function pollJobStatus(jobId) {
             updateProgress(progress, 'AI is creating your dancing pet...');
 
             if (data.status === 'completed') {
-                showResult(data.downloadUrl);
+                let url = data.downloadUrl;
+                if (!url && data.outputVideoPath) {
+                    try {
+                        url = await PetDanceAPI.getVideoUrlFromPath(data.outputVideoPath);
+                    } catch (e) {
+                        console.error('Get video URL failed:', e);
+                    }
+                }
+                showResult(url);
             } else if (data.status === 'failed') {
                 showError(data.errorMessage || 'Generation failed');
             } else {

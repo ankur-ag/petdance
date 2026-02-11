@@ -27,18 +27,21 @@ const API = {
         return data;
     },
 
-    async uploadImage(uploadUrl, file) {
-        const res = await fetch(uploadUrl, {
-            method: 'PUT',
-            body: file,
-            headers: {
-                'Content-Type': file.type || 'image/jpeg',
-            },
-        });
-        if (!res.ok) throw new Error('Failed to upload image');
+    async uploadToStorage(uploadPath, file) {
+        const storage = window.firebaseStorage;
+        if (!storage) throw new Error('Firebase Storage not loaded');
+        const ref = storage.ref(uploadPath);
+        await ref.put(file);
     },
 
-    async startJob(jobId) {
+    async getDownloadUrlFromPath(storagePath) {
+        const storage = window.firebaseStorage;
+        if (!storage) throw new Error('Firebase Storage not loaded');
+        const ref = storage.ref(storagePath);
+        return ref.getDownloadURL();
+    },
+
+    async startJob(jobId, imageUrl) {
         const token = await this.getAuthToken();
         const base = window.FUNCTIONS_BASE;
         const res = await fetch(`${base}/startJob`, {
@@ -47,7 +50,7 @@ const API = {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ jobId }),
+            body: JSON.stringify({ jobId, imageUrl }),
         });
 
         const data = await res.json();
@@ -101,7 +104,15 @@ const API = {
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to get download URL');
+        if (data.outputVideoPath) {
+            return this.getDownloadUrlFromPath(data.outputVideoPath);
+        }
         return data.downloadUrl;
+    },
+
+    async getVideoUrlFromPath(outputVideoPath) {
+        if (!outputVideoPath) return null;
+        return this.getDownloadUrlFromPath(outputVideoPath);
     },
 };
 

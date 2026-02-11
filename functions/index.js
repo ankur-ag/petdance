@@ -26,24 +26,19 @@ const {
   MAX_IMAGE_SIZE_BYTES,
 } = require('./helpers/replicate');
 
-admin.initializeApp();
+const BUCKET_NAME = process.env.STORAGE_BUCKET || 'petdance-da752.firebasestorage.app';
+
+admin.initializeApp({ storageBucket: BUCKET_NAME });
 
 const db = admin.firestore();
 const auth = admin.auth();
 
-// Storage bucket - new projects use .firebasestorage.app, older use .appspot.com
 let bucket;
 try {
-  const storage = getStorage();
-  const firebaseConfig = process.env.FIREBASE_CONFIG ? JSON.parse(process.env.FIREBASE_CONFIG) : {};
-  const projectId = process.env.GCLOUD_PROJECT || firebaseConfig.projectId || 'petdance-da752';
-  const bucketName = process.env.STORAGE_BUCKET
-    || firebaseConfig.storageBucket
-    || `${projectId}.firebasestorage.app`  // New format (Oct 2024+)
-    || `${projectId}.appspot.com`;         // Legacy
-  bucket = storage.bucket(bucketName);
+  bucket = getStorage().bucket(BUCKET_NAME);
+  console.log('Storage bucket:', bucket.name);
 } catch (e) {
-  console.warn('Storage not available:', e.message);
+  console.error('Storage init failed:', e.message, e.code);
 }
 
 const STORAGE_UNAVAILABLE_MSG = 'Video storage is being configured. Please try again later. (Storage requires billing setup)';
@@ -97,17 +92,18 @@ async function checkRateLimit(userId) {
   return true;
 }
 
-/** Verify we can write to Storage outputs path before calling expensive Replicate API */
+/** Verify we can write to Storage before calling expensive Replicate API */
 async function verifyStorageWritable(userId, jobId) {
   if (!bucket) return false;
+  if (process.env.STORAGE_SKIP_PROBE === '1') return true; // Bypass for debugging
   const outputPath = `outputs/${userId}/${jobId}/.probe`;
-  const probeFile = bucket.file(outputPath);
   try {
-    await probeFile.save(Buffer.from('ok'), { metadata: { contentType: 'text/plain' } });
-    await probeFile.delete(); // Clean up
+    const probeFile = bucket.file(outputPath);
+    await probeFile.save(Buffer.from('probe'), { metadata: { contentType: 'text/plain' } });
+    await probeFile.delete();
     return true;
   } catch (e) {
-    console.warn('Storage write probe failed:', e.message);
+    console.error('Storage probe failed:', e.message, 'code:', e.code);
     return false;
   }
 }
@@ -167,32 +163,13 @@ exports.createJob = functions.https.onRequest(async (req, res) => {
       // Allow free tier with rate limit
     }
 
-    if (!bucket) {
-      res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
-      return;
-    }
-
     const jobRef = db.collection('jobs').doc();
     const jobId = jobRef.id;
-    const inputPath = `uploads/${userId}/${jobId}/original.jpg`;
-    const file = bucket.file(inputPath);
-
-    let uploadUrl;
-    try {
-      [uploadUrl] = await file.getSignedUrl({
-        action: 'write',
-        expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-        contentType: 'image/jpeg',
-      });
-    } catch (storageErr) {
-      console.error('Storage getSignedUrl error:', storageErr);
-      res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
-      return;
-    }
+    const uploadPath = `uploads/${userId}/${jobId}/original.jpg`;
 
     await jobRef.set({
       userId,
-      inputImagePath: inputPath,
+      inputImagePath: uploadPath,
       outputVideoPath: null,
       status: 'pending',
       danceStyle,
@@ -204,9 +181,7 @@ exports.createJob = functions.https.onRequest(async (req, res) => {
 
     res.status(200).json({
       jobId,
-      uploadUrl,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
-      inputPath,
+      uploadPath,
     });
   } catch (error) {
     console.error('createJob error:', error);
@@ -248,7 +223,7 @@ exports.startJob = functions.https.onRequest(async (req, res) => {
     const decodedToken = await auth.verifyIdToken(idToken);
     const userId = decodedToken.uid;
 
-    const { jobId } = req.body || {};
+    const { jobId, imageUrl: clientImageUrl } = req.body || {};
     if (!jobId) {
       res.status(400).json({ error: 'jobId is required' });
       return;
@@ -278,41 +253,54 @@ exports.startJob = functions.https.onRequest(async (req, res) => {
       // Free user - rate limit already checked at job creation
     }
 
+    await checkRateLimit(userId);
+
+    let imageUrl = clientImageUrl;
+    if (!imageUrl || typeof imageUrl !== 'string') {
+      res.status(400).json({ error: 'imageUrl is required. Upload image first, then call startJob with the download URL.' });
+      return;
+    }
+    if (!imageUrl.startsWith('http')) {
+      res.status(400).json({ error: 'imageUrl must be a valid HTTP URL' });
+      return;
+    }
+
     if (!bucket) {
       res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
       return;
     }
-
-    await checkRateLimit(userId);
-
     const canWrite = await verifyStorageWritable(userId, jobRef.id);
     if (!canWrite) {
       res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
       return;
     }
 
-    const inputFile = bucket.file(job.inputImagePath);
-    let exists;
-    let imageUrl;
-    try {
-      [exists] = await inputFile.exists();
-      if (!exists) {
+    const mockMode = process.env.REPLICATE_MOCK === '1';
+    const mockVideoUrl = process.env.MOCK_VIDEO_URL || 'https://download.samplelib.com/mp4/sample-5s.mp4';
+
+    if (mockMode) {
+      // Skip Replicate API - use sample video (no cost)
+      const outputPath = `outputs/${userId}/${jobRef.id}/dance.mp4`;
+      const outputFile = bucket.file(outputPath);
+      try {
+        const fetchRes = await fetch(mockVideoUrl);
+        if (!fetchRes.ok) throw new Error(`Mock video fetch failed: ${fetchRes.status}`);
+        const buffer = Buffer.from(await fetchRes.arrayBuffer());
+        await outputFile.save(buffer, { metadata: { contentType: 'video/mp4' } });
         await jobRef.update({
-          status: 'failed',
-          errorMessage: 'Image not uploaded',
+          status: 'completed',
+          outputVideoPath: outputPath,
+          replicateJobId: 'mock-' + jobRef.id,
           completedAt: admin.firestore.FieldValue.serverTimestamp(),
+          errorMessage: null,
         });
-        res.status(400).json({ error: 'Image not found. Please upload first.' });
+        res.status(200).json({ jobId, status: 'completed', mock: true });
+        return;
+      } catch (mockErr) {
+        console.error('Mock mode error:', mockErr);
+        res.status(500).json({ error: 'Mock mode failed: ' + mockErr.message });
         return;
       }
-      [imageUrl] = await inputFile.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 60 * 60 * 1000,
-      });
-    } catch (storageErr) {
-      console.error('Storage error in startJob:', storageErr);
-      res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
-      return;
     }
 
     const projectId = process.env.GCLOUD_PROJECT
@@ -368,7 +356,8 @@ exports.replicateWebhook = functions.https.onRequest(async (req, res) => {
   const webhookSignature = req.headers['webhook-signature'];
 
   const secret = process.env.REPLICATE_WEBHOOK_SECRET || config().replicateWebhookSecret;
-  if (secret && webhookId && webhookTimestamp && webhookSignature) {
+  const skipVerify = process.env.REPLICATE_SKIP_WEBHOOK_VERIFY === '1';
+  if (secret && webhookId && webhookTimestamp && webhookSignature && !skipVerify) {
     const isValid = verifyWebhookSignature(
       rawBody,
       webhookId,
@@ -377,11 +366,13 @@ exports.replicateWebhook = functions.https.onRequest(async (req, res) => {
       secret
     );
     if (!isValid) {
-      console.error('Invalid webhook signature');
+      console.error('Invalid webhook signature - check rawBody matches sent payload, or set REPLICATE_SKIP_WEBHOOK_VERIFY=1 to bypass');
       res.status(401).send('Invalid signature');
       return;
     }
-  } else if (secret) {
+  } else if (secret && skipVerify) {
+    console.warn('Webhook verification SKIPPED (REPLICATE_SKIP_WEBHOOK_VERIFY=1) - re-enable for production');
+  } else if (secret && (!webhookId || !webhookTimestamp || !webhookSignature)) {
     console.warn('Webhook verification skipped - missing headers');
   }
 
@@ -547,25 +538,7 @@ exports.getDownloadUrl = functions.https.onRequest(async (req, res) => {
       return;
     }
 
-    if (!bucket) {
-      res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
-      return;
-    }
-
-    const file = bucket.file(job.outputVideoPath);
-    let url;
-    try {
-      [url] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 60 * 60 * 1000,
-      });
-    } catch (storageErr) {
-      console.error('Storage error in getDownloadUrl:', storageErr);
-      res.status(503).json({ error: STORAGE_UNAVAILABLE_MSG });
-      return;
-    }
-
-    res.status(200).json({ downloadUrl: url, expiresIn: 3600 });
+    res.status(200).json({ outputVideoPath: job.outputVideoPath, expiresIn: 3600 });
   } catch (error) {
     console.error('getDownloadUrl error:', error);
     res.status(500).json({ error: error.message || 'Internal server error' });
@@ -631,16 +604,7 @@ exports.getJobStatus = functions.https.onRequest(async (req, res) => {
     };
 
     if (job.status === 'completed' && job.outputVideoPath) {
-      if (bucket) {
-        const file = bucket.file(job.outputVideoPath);
-        const [url] = await file.getSignedUrl({
-        action: 'read',
-        expires: Date.now() + 60 * 60 * 1000,
-      });
-      data.downloadUrl = url;
-      } else {
-        data.errorMessage = STORAGE_UNAVAILABLE_MSG;
-      }
+      data.outputVideoPath = job.outputVideoPath;
     }
 
     res.status(200).json(data);

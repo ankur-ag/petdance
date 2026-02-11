@@ -17,6 +17,7 @@ firebase.initializeApp(firebaseConfig);
 // Initialize Firebase services
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 // Cloud Functions base URL (uses same project)
 const FUNCTIONS_BASE = `https://us-central1-${firebaseConfig.projectId}.cloudfunctions.net`;
@@ -29,6 +30,7 @@ googleProvider.addScope('email');
 // Export for use in other files
 window.firebaseAuth = auth;
 window.firebaseDb = db;
+window.firebaseStorage = storage;
 window.firebaseConfig = firebaseConfig;
 window.FUNCTIONS_BASE = FUNCTIONS_BASE;
 window.googleProvider = googleProvider;

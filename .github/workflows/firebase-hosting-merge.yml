@@ -12,3 +12,4 @@ jobs:
         with:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PETDANCE_DA752 }}
           projectId: petdance-da752
+          channelId: live

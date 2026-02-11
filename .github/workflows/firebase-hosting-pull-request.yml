@@ -18,3 +18,4 @@ jobs:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PETDANCE_DA752 }}
           projectId: petdance-da752
+          channelId: pr-${{ github.event.pull_request.number }}

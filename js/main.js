@@ -52,11 +52,23 @@ function selectPlan(planType) {
 }
 
 // Logout function
-function logout() {
-    if (confirm('Are you sure you want to logout?')) {
+async function logout() {
+    if (!confirm('Are you sure you want to logout?')) return;
+    closeProfile();
+    try {
         if (window.authManager) {
-            window.authManager.signOut();
+            await window.authManager.signOut();
+        } else if (window.firebaseAuth) {
+            await window.firebaseAuth.signOut();
+            if (window.location.pathname.includes('app.html')) {
+                window.location.href = 'index.html';
+            }
+        } else {
+            console.warn('Auth not available');
         }
+    } catch (e) {
+        console.error('Logout failed:', e);
+        alert('Logout failed. Please try again.');
     }
 }
 
@@ -167,6 +179,8 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         closeSubscription();
         closeProfile();
+        closeLoginModal();
+        closeSignUpModal();
     }
 });
 
