@@ -7,10 +7,18 @@
     "start": "serve . -p 8000",
     "build": "echo 'No build step - static site'"
   },
-  "keywords": ["pet", "ai", "video", "dance"],
+  "keywords": [
+    "pet",
+    "ai",
+    "video",
+    "dance"
+  ],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "serve": "^14.2.0"
+  },
+  "dependencies": {
+    "replicate": "^1.4.0"
   }
 }

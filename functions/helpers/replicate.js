@@ -37,24 +37,39 @@ async function createPrediction(imageUrl, danceStyle, webhookUrl, apiToken, mode
     throw new Error('REPLICATE_API_TOKEN is not configured');
   }
 
-  modelConfig = modelConfig || process.env.REPLICATE_MODEL || 'stability-ai/stable-video-diffusion:3f0457e4619daac51203dedb472816fd4af51f3149fa7a9e0b5ffcf1b8172438';
+  modelConfig = modelConfig || process.env.REPLICATE_MODEL || 'minimax/hailuo-2.3-fast';
 
   let version = modelConfig;
   if (!modelConfig.includes(':')) {
     version = await getModelVersion(modelConfig);
   }
 
-  // Stable Video Diffusion uses image input; minimax/video-01 uses prompt + image
-  const input = modelConfig.startsWith('minimax/')
-    ? {
-        prompt: `A cute pet dancing in ${danceStyle} style, smooth motion, professional quality`,
-        image: imageUrl,
-      }
-    : {
-        image: imageUrl,
-        motion_bucket_id: 127,
-        fps: 6,
-      };
+  // minimax/hailuo-2.3-fast: first_frame_image, prompt, duration, resolution
+  // minimax/video-01: image, prompt
+  // stability-ai/stable-video-diffusion: image, motion_bucket_id, fps
+  let input;
+  if (modelConfig.includes('hailuo')) {
+    input = {
+      first_frame_image: imageUrl,
+      prompt: `A cute pet dancing in ${danceStyle} style, smooth motion, professional quality`,
+      duration: 6,
+      resolution: '768p',
+      prompt_optimizer: true,
+    };
+  } else if (modelConfig.startsWith('minimax/')) {
+    input = {
+      prompt: `A cute pet dancing in ${danceStyle} style, smooth motion, professional quality`,
+      image: imageUrl,
+    };
+  } else if (modelConfig.startsWith('stability-ai/')) {
+    input = {
+      image: imageUrl,
+      motion_bucket_id: 127,
+      fps: 6,
+    };
+  } else {
+    input = { image: imageUrl, prompt: `Pet dancing in ${danceStyle} style` };
+  }
 
   const payload = {
     version,

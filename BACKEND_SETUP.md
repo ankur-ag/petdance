@@ -53,7 +53,7 @@ Set these in Firebase Console → Functions → configure secrets, or via `fireb
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `REPLICATE_API_TOKEN` | Get from [Replicate Account](https://replicate.com/account/api-tokens) | Yes |
-| `REPLICATE_MODEL` | Model ID, e.g. `stability-ai/stable-video-diffusion:3f0457e...` or `minimax/video-01` | No (has default) |
+| `REPLICATE_MODEL` | Model ID. Default: `minimax/hailuo-2.3-fast` (pet dancing). Other options: `minimax/video-01`, `stability-ai/stable-video-diffusion` | No |
 | `REPLICATE_WEBHOOK_SECRET` | From `GET https://api.replicate.com/v1/webhooks/default/secret` | For webhook verification |
 | `REVENUECAT_SECRET_KEY` | From RevenueCat dashboard | For subscription validation |
 | `REVENUECAT_ENTITLEMENT_ID` | Your entitlement ID (e.g. `pro`) | No (defaults to `pro`) |
@@ -83,8 +83,9 @@ For simplicity, use **Firebase Console** → Your project → Functions → sele
 3. Create a token
 
 ### 3.2 Choose a Model
-- **stability-ai/stable-video-diffusion**: Image-to-video (default)
+- **minimax/hailuo-2.3-fast**: Pet dancing, lower latency (default)
 - **minimax/video-01**: Text + image to video
+- **stability-ai/stable-video-diffusion**: Image-to-video
 - Search [Replicate explore](https://replicate.com/explore) for "image to video" or "animate"
 
 ### 3.3 Configure Webhook

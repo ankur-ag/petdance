@@ -287,6 +287,14 @@ class AuthManager {
 // Initialize auth manager
 let authManager;
 document.addEventListener('DOMContentLoaded', () => {
-    authManager = new AuthManager();
-    window.authManager = authManager;
+    try {
+        if (window.firebaseAuth && window.googleProvider) {
+            authManager = new AuthManager();
+            window.authManager = authManager;
+        } else {
+            console.warn('Firebase Auth not loaded - login will not work');
+        }
+    } catch (e) {
+        console.error('AuthManager init failed:', e);
+    }
 });
